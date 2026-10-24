@@ -1,0 +1,45 @@
+name: Build & Deploy mdBook to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: hacktricks-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/hacktricks-wiki/hacktricks-cloud/translator-image:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build book
+        env:
+          MDBOOK_BOOK__LANGUAGE: en
+          MDBOOK_PREPROCESSOR__HACKTRICKS__ENV: prod
+        run: mdbook build
+      - name: Drop oversized search index (static mirror)
+        run: |
+          rm -f book/searchindex.js
+          printf '/* search index omitted in this mirror */\n' > book/searchindex.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: book
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
